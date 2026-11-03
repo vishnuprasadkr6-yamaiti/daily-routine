@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>My Daily Routine</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Smooth transitions for checkboxes and progress bar */
+        .checkbox-custom { transition: all 0.2s ease-in-out; }
+        .progress-bar { transition: width 0.4s ease-in-out; }
+        /* Hide scrollbar for a native app feel */
+        ::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="bg-rose-50 min-h-screen font-sans text-slate-800 pb-24 selection:bg-rose-200">
+
+    <div class="max-w-md mx-auto bg-white min-h-screen shadow-lg relative overflow-hidden">
+        
+        <!-- Header & Progress -->
+        <header class="bg-rose-500 text-white p-6 rounded-b-3xl shadow-md sticky top-0 z-10">
+            <div class="flex justify-between items-center mb-4">
+                <div>
+                    <h1 class="text-2xl font-bold tracking-wide">Daily Flow</h1>
+                    <p id="dateDisplay" class="text-rose-100 text-sm mt-1"></p>
+                </div>
+                <button onclick="toggleEditMode()" id="editBtn" class="bg-rose-600 hover:bg-rose-700 p-2 rounded-full transition">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                </button>
+            </div>
+            
+            <div>
+                <div class="flex justify-between text-sm font-medium mb-2">
+                    <span>Progress</span>
+                    <span id="progressText">0%</span>
+                </div>
+                <div class="w-full bg-rose-300 rounded-full h-2.5">
+                    <div id="progressBar" class="bg-white h-2.5 rounded-full progress-bar" style="width: 0%"></div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Task List -->
+        <main class="p-6 space-y-3" id="taskList">
+            <!-- Tasks populated by JS -->
+        </main>
+
+        <!-- Add Task Form (Hidden by default) -->
+        <div id="addTaskSection" class="hidden p-6 bg-slate-50 border-t border-slate-100 pb-20">
+            <h3 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">Add Custom Activity</h3>
+            <div class="flex gap-2">
+                <input type="text" id="newTaskInput" placeholder="E.g., Call mom" class="flex-1 border border-slate-300 rounded-xl p-3 text-sm focus:ring-2 focus:ring-rose-400 outline-none">
+                <button onclick="addTask()" class="bg-rose-500 text-white px-5 rounded-xl font-medium shadow-sm active:scale-95 transition">Add</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // Improvised Default Template
+        const defaultTasks = [
+            { id: 1, text: "Wake up & Hydrate (Warm water/Detox)", completed: false },
+            { id: 2, text: "Load the Washing Machine", completed: false },
+            { id: 3, text: "Morning Yoga & Stretching", completed: false },
+            { id: 4, text: "Morning Shower", completed: false },
+            { id: 5, text: "Breakfast & Lunch Prep", completed: false },
+            { id: 6, text: "Commute & Work", completed: false },
+            { id: 7, text: "Return Home & Basic Tidying", completed: false },
+            { id: 8, text: "Evening Freshen Up / Shower", completed: false },
+            { id: 9, text: "Meditation & Mindfulness", completed: false },
+            { id: 10, text: "Learning & Development", completed: false },
+            { id: 11, text: "Cook Dinner", completed: false },
+            { id: 12, text: "Quality Time & Romantic Conversation", completed: false },
+            { id: 13, text: "Sleep & Recharge", completed: false }
+        ];
+
+        let tasks = JSON.parse(localStorage.getItem('partnerRoutineTasks')) || defaultTasks;
+        let isEditMode = false;
+
+        // Daily Reset Logic
+        const today = new Date().toDateString();
+        const lastSavedDate = localStorage.getItem('partnerRoutineDate');
+        
+        if (lastSavedDate !== today) {
+            tasks = tasks.map(task => ({ ...task, completed: false }));
+            localStorage.setItem('partnerRoutineDate', today);
+            saveData();
+        }
+
+        document.getElementById('dateDisplay').textContent = new Date().toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric' });
+
+        function renderTasks() {
+            const taskList = document.getElementById('taskList');
+            taskList.innerHTML = '';
+            
+            let completedCount = 0;
+
+            tasks.forEach((task, index) => {
+                if (task.completed) completedCount++;
+
+                const taskEl = document.createElement('div');
+                taskEl.className = `flex items-center justify-between p-4 rounded-2xl border transition-all ${task.completed ? 'bg-rose-50 border-rose-200' : 'bg-white border-slate-200 shadow-sm'}`;
+                
+                // Normal Mode View
+                let innerHTML = `
+                    <div class="flex items-center gap-4 flex-1 cursor-pointer" onclick="toggleTask(${index})">
+                        <div class="w-6 h-6 rounded-full border-2 flex items-center justify-center checkbox-custom ${task.completed ? 'bg-rose-500 border-rose-500' : 'border-slate-300'}">
+                            ${task.completed ? `<svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>` : ''}
+                        </div>
+                        <span class="font-medium ${task.completed ? 'text-rose-700 line-through opacity-70' : 'text-slate-700'} transition-all">${task.text}</span>
+                    </div>
+                `;
+
+                // Edit Mode View (Shows Delete Button)
+                if (isEditMode) {
+                    innerHTML += `
+                        <button onclick="deleteTask(${index})" class="text-red-400 hover:text-red-600 p-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        </button>
+                    `;
+                }
+
+                taskEl.innerHTML = innerHTML;
+                taskList.appendChild(taskEl);
+            });
+
+            // Update Progress
+            const progress = tasks.length === 0 ? 0 : Math.round((completedCount / tasks.length) * 100);
+            document.getElementById('progressBar').style.width = `${progress}%`;
+            document.getElementById('progressText').textContent = `${progress}%`;
+        }
+
+        function toggleTask(index) {
+            if (isEditMode) return; // Disable ticking while editing
+            tasks[index].completed = !tasks[index].completed;
+            saveData();
+            renderTasks();
+        }
+
+        function addTask() {
+            const input = document.getElementById('newTaskInput');
+            const text = input.value.trim();
+            if (text) {
+                tasks.push({ id: Date.now(), text: text, completed: false });
+                input.value = '';
+                saveData();
+                renderTasks();
+            }
+        }
+
+        function deleteTask(index) {
+            tasks.splice(index, 1);
+            saveData();
+            renderTasks();
+        }
+
+        function toggleEditMode() {
+            isEditMode = !isEditMode;
+            document.getElementById('addTaskSection').classList.toggle('hidden');
+            const editBtn = document.getElementById('editBtn');
+            if (isEditMode) {
+                editBtn.classList.replace('bg-rose-600', 'bg-slate-800');
+                editBtn.classList.replace('hover:bg-rose-700', 'hover:bg-slate-900');
+            } else {
+                editBtn.classList.replace('bg-slate-800', 'bg-rose-600');
+                editBtn.classList.replace('hover:bg-slate-900', 'hover:bg-rose-700');
+            }
+            renderTasks();
+        }
+
+        function saveData() {
+            localStorage.setItem('partnerRoutineTasks', JSON.stringify(tasks));
+        }
+
+        // Initialize
+        renderTasks();
+    </script>
+</body>
+</html>
